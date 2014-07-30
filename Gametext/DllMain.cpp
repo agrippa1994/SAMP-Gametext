@@ -65,26 +65,27 @@ void init()
 
 BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReasonForCall, LPVOID pVoid)
 {
+	DisableThreadLibraryCalls((HMODULE) hInstance);
+
+	if (dwReasonForCall != DLL_PROCESS_ATTACH)
+		return FALSE;
+
 	g_hDllHandle = (HMODULE) hInstance;
 
-	if (dwReasonForCall == DLL_PROCESS_ATTACH)
-	{
-		char szBuffer[MAX_PATH + 1] = { 0 };
-		GetModuleFileNameA(NULL, szBuffer, sizeof(szBuffer) -1);
+	char szBuffer[MAX_PATH + 1] = { 0 };
+	GetModuleFileNameA(NULL, szBuffer, sizeof(szBuffer) -1);
 
-		if (std::string(szBuffer).find("gta_sa.exe") != std::string::npos || std::string(szBuffer).find("rgn_ac_gta.exe") != std::string::npos){
-			CreateThread(0, 0, (LPTHREAD_START_ROUTINE) init, 0, 0, NULL);
-		}
-
-		return TRUE;
-	}
-	return FALSE;
+	DWORD dwPID = 0;
+	GetWindowThreadProcessId(FindWindowA(0, "GTA:SA:MP"), &dwPID);
+	
+	if (dwPID == GetCurrentProcessId())
+		CreateThread(0, 0, (LPTHREAD_START_ROUTINE) init, 0, 0, NULL);
+	
+	return TRUE;
 }
 
 extern "C" __declspec(dllexport) int Load()
 {
-	// DllCall("Test.dll\Load")
-
 	char szDLLPath[MAX_PATH + 1] = { 0 };
 	DWORD dwPId = 0;
 	BOOL bRetn;
@@ -99,7 +100,7 @@ extern "C" __declspec(dllexport) int Load()
 	if (dwPId == 0)
 		return 0;
 
-	HANDLE hHandle = OpenProcess((STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFF), FALSE, dwPId); // TODO: fixme
+	HANDLE hHandle = OpenProcess((STANDARD_RIGHTS_REQUIRED | SYNCHRONIZE | 0xFFF), FALSE, dwPId);
 	if (hHandle == 0 || hHandle == INVALID_HANDLE_VALUE)
 	{
 		return 0;
@@ -139,7 +140,11 @@ extern "C" __declspec(dllexport) int Load()
 	WaitForSingleObject(hThread, INFINITE);
 	VirtualFreeEx(hHandle, pAddr, strlen(szDLLPath) + 1, MEM_RELEASE);
 
+	DWORD dwExitCode = 0;
+	if (!GetExitCodeThread(hThread, &dwExitCode))
+		return 0;
+
 	CloseHandle(hThread);
 
-	return 1;
+	return dwExitCode;
 }
